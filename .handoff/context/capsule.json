@@ -1,0 +1,10 @@
+{
+  "schema": "handoff.context_capsule.v1",
+  "project_name": "loop_lib",
+  "role": "Core Rust library that executes shell commands across many directories \u2014 serial or rayon-parallel, with include/exclude filters, dry-run, JSON output, and progress bars. It is the command-execution engine underlying the meta CLI's cross-repo operations (meta exec et al.).",
+  "plane": "foundation",
+  "tier": "A",
+  "northstar": "Meta makes multi-repo feel like monorepo without the downsides; the canon machinery stays green, versioned by the parent distribution.",
+  "next_command": "Plan in kb first (git kb board); mint execution cards via hf (ADR-0003)",
+  "source": "ARCHITECTURE-TRUTH.md census 2026-06-12"
+}
