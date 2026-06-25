@@ -765,3 +765,59 @@ fn test_dir_command_serialization() {
     assert_eq!(parsed.dir, "/path/to/dir");
     assert_eq!(parsed.cmd, "git status");
 }
+
+#[test]
+fn test_get_shell_and_flag_pub() {
+    // Public re-export usable by external supervisors (e.g. envctl's engine runner).
+    let (shell, flag) = get_shell_and_flag();
+    assert!(!shell.is_empty(), "shell program must be non-empty");
+    #[cfg(not(windows))]
+    assert_eq!(flag, "-c");
+    #[cfg(windows)]
+    assert_eq!(flag, "/c");
+}
+
+#[test]
+fn test_build_command_assembles_program_args_cwd_env() {
+    let args = vec!["-lc".to_string(), "echo hi".to_string()];
+    let env = vec![("ENVCTL_TEST".to_string(), "1".to_string())];
+    let dir = std::path::Path::new("/tmp");
+    let spec = SpawnSpec {
+        program: "bash",
+        args: &args,
+        current_dir: Some(dir),
+        env: &env,
+    };
+    let cmd = build_command(&spec);
+
+    assert_eq!(cmd.get_program(), std::ffi::OsStr::new("bash"));
+    let got_args: Vec<_> = cmd.get_args().collect();
+    assert_eq!(
+        got_args,
+        vec![std::ffi::OsStr::new("-lc"), std::ffi::OsStr::new("echo hi")]
+    );
+    assert_eq!(cmd.get_current_dir(), Some(dir));
+    // Explicit env is set; nothing else is force-injected (caller keeps full control).
+    let envs: Vec<_> = cmd.get_envs().collect();
+    assert!(envs
+        .iter()
+        .any(|(k, v)| *k == std::ffi::OsStr::new("ENVCTL_TEST")
+            && *v == Some(std::ffi::OsStr::new("1"))));
+}
+
+#[test]
+fn test_build_command_defaults_no_cwd_no_env() {
+    let args = vec!["true".to_string()];
+    let spec = SpawnSpec {
+        program: "bash",
+        args: &args,
+        ..Default::default()
+    };
+    let cmd = build_command(&spec);
+    assert_eq!(cmd.get_current_dir(), None);
+    assert_eq!(
+        cmd.get_envs().count(),
+        0,
+        "no env force-injected by default"
+    );
+}
