@@ -17,7 +17,11 @@ use std::time::Duration;
 /// Returns the shell program and command-line flag for executing commands.
 /// On Unix: uses $SHELL or /bin/sh with -c
 /// On Windows: uses cmd.exe with /c
-fn get_shell_and_flag() -> (String, &'static str) {
+///
+/// Public so consumers that build their own supervised `Command` (e.g. envctl's
+/// engine hook runner) can reuse loop_lib's shell-selection policy for the
+/// non-login fallback instead of duplicating it.
+pub fn get_shell_and_flag() -> (String, &'static str) {
     #[cfg(windows)]
     {
         (
@@ -32,6 +36,45 @@ fn get_shell_and_flag() -> (String, &'static str) {
             "-c",
         )
     }
+}
+
+/// Specification for constructing a subprocess [`Command`] without spawning it.
+///
+/// The caller supplies the fully-resolved `program` + `args` (e.g. `"bash"`,
+/// `["-lc", script]`, or `"sudo"`, `["-n", "bash", …]`), so this serves every
+/// wrapping mode — clean argv, `bash -lc`/`-c`, or `sudo -n …`. Unlike
+/// [`execute_command_in_directory_capturing`], **no implicit environment is
+/// injected** (no `env::vars()`, no `FORCE_COLOR`): the caller keeps full control
+/// of env, stdio, process-group (`pre_exec`/`setsid`), and timeout policy. This is
+/// the command-*construction* substrate for a supervisor that owns *execution*.
+#[derive(Debug, Clone, Default)]
+pub struct SpawnSpec<'a> {
+    /// The program to execute (the resolved executable; not shell-wrapped here).
+    pub program: &'a str,
+    /// Arguments passed verbatim (already including any shell flags the caller wants).
+    pub args: &'a [String],
+    /// Working directory, if the command should not inherit the parent's cwd.
+    pub current_dir: Option<&'a Path>,
+    /// Environment variables to set explicitly (key, value) pairs. Only these are
+    /// applied — the parent environment is inherited by `std::process::Command`'s
+    /// default, and nothing else is force-injected.
+    pub env: &'a [(String, String)],
+}
+
+/// Build an unspawned [`std::process::Command`] from a [`SpawnSpec`].
+///
+/// Stdio configuration, `pre_exec` (e.g. `setsid`), output streaming, and timeout
+/// handling are the caller's responsibility — this only assembles the command.
+pub fn build_command(spec: &SpawnSpec) -> Command {
+    let mut cmd = Command::new(spec.program);
+    cmd.args(spec.args);
+    if let Some(dir) = spec.current_dir {
+        cmd.current_dir(dir);
+    }
+    for (k, v) in spec.env {
+        cmd.env(k, v);
+    }
+    cmd
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
