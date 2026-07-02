@@ -1,9 +1,9 @@
 [package]
 name = "loop_lib"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-repository.workspace = true
+version = "0.2.25"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/FlexNetOS/loop_lib"
 description = "Core loop engine library for running commands across directories"
 
 [dependencies]
