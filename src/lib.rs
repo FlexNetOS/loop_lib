@@ -305,7 +305,7 @@ pub fn execute_command_in_directory(
         cmd_builder.envs(extra);
     }
 
-    let mut child = cmd_builder
+    let mut child = match cmd_builder
         .stdout(if config.silent {
             Stdio::null()
         } else {
@@ -323,10 +323,41 @@ pub fn execute_command_in_directory(
                 resolved_command,
                 dir.display()
             )
-        })
-        .expect("Failed to execute command");
+        }) {
+        Ok(child) => child,
+        Err(err) => {
+            let message = err.to_string();
+            if !config.silent {
+                eprintln!("{message}");
+            }
+            return CommandResult {
+                success: false,
+                exit_code: 1,
+                directory: dir.to_path_buf(),
+                command: resolved_command,
+                stdout: String::new(),
+                stderr: message,
+            };
+        }
+    };
 
-    let status = child.wait().expect("Failed to wait on child process");
+    let status = match child.wait() {
+        Ok(status) => status,
+        Err(err) => {
+            let message = format!("Failed to wait on child process: {err}");
+            if !config.silent {
+                eprintln!("{message}");
+            }
+            return CommandResult {
+                success: false,
+                exit_code: 1,
+                directory: dir.to_path_buf(),
+                command: resolved_command,
+                stdout: String::new(),
+                stderr: message,
+            };
+        }
+    };
     let exit_code = status.code().unwrap_or(-1);
     let success = status.success();
 
