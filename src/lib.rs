@@ -17,7 +17,10 @@ use std::time::Duration;
 /// Returns the shell program and command-line flag for executing commands.
 /// On Unix: uses $SHELL or /bin/sh with -c
 /// On Windows: uses cmd.exe with /c
-fn get_shell_and_flag() -> (String, &'static str) {
+///
+/// Public so consumers that supervise their own subprocesses can reuse
+/// loop_lib's shell-selection policy without duplicating it.
+pub fn get_shell_and_flag() -> (String, &'static str) {
     #[cfg(windows)]
     {
         (
@@ -32,6 +35,36 @@ fn get_shell_and_flag() -> (String, &'static str) {
             "-c",
         )
     }
+}
+
+/// Specification for constructing a subprocess [`Command`] without spawning it.
+///
+/// The caller supplies the fully resolved program and argv, so this supports
+/// direct commands, shell-wrapped commands, and sudo-wrapped commands while
+/// leaving stdio, process groups, streaming, and timeout policy to the caller.
+#[derive(Debug, Clone, Default)]
+pub struct SpawnSpec<'a> {
+    /// Program to execute.
+    pub program: &'a str,
+    /// Arguments passed verbatim to the program.
+    pub args: &'a [String],
+    /// Optional working directory.
+    pub current_dir: Option<&'a Path>,
+    /// Explicit environment variables to set on the command.
+    pub env: &'a [(String, String)],
+}
+
+/// Build an unspawned [`std::process::Command`] from a [`SpawnSpec`].
+pub fn build_command(spec: &SpawnSpec) -> Command {
+    let mut cmd = Command::new(spec.program);
+    cmd.args(spec.args);
+    if let Some(dir) = spec.current_dir {
+        cmd.current_dir(dir);
+    }
+    for (key, value) in spec.env {
+        cmd.env(key, value);
+    }
+    cmd
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
