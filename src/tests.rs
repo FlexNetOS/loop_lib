@@ -765,3 +765,47 @@ fn test_dir_command_serialization() {
     assert_eq!(parsed.dir, "/path/to/dir");
     assert_eq!(parsed.cmd, "git status");
 }
+
+#[test]
+fn test_build_command_assembles_program_args_cwd_env() {
+    let args = vec!["-lc".to_string(), "echo $LOOP_TEST".to_string()];
+    let env = vec![("LOOP_TEST".to_string(), "ok".to_string())];
+    let spec = SpawnSpec {
+        program: "sh",
+        args: &args,
+        current_dir: Some(Path::new("/tmp")),
+        env: &env,
+    };
+
+    let cmd = build_command(&spec);
+    assert_eq!(cmd.get_program(), "sh");
+    assert_eq!(
+        cmd.get_args().collect::<Vec<_>>(),
+        vec!["-lc", "echo $LOOP_TEST"]
+    );
+    assert_eq!(cmd.get_current_dir(), Some(Path::new("/tmp")));
+    assert_eq!(
+        cmd.get_envs()
+            .find(|(key, _)| *key == std::ffi::OsStr::new("LOOP_TEST"))
+            .and_then(|(_, value)| value),
+        Some(std::ffi::OsStr::new("ok"))
+    );
+}
+
+#[test]
+fn test_build_command_defaults_no_cwd_no_env() {
+    let args = Vec::new();
+    let env = Vec::new();
+    let spec = SpawnSpec {
+        program: "true",
+        args: &args,
+        current_dir: None,
+        env: &env,
+    };
+
+    let cmd = build_command(&spec);
+    assert_eq!(cmd.get_program(), "true");
+    assert_eq!(cmd.get_args().count(), 0);
+    assert_eq!(cmd.get_current_dir(), None);
+    assert_eq!(cmd.get_envs().count(), 0);
+}
