@@ -52,6 +52,12 @@ pub struct SpawnSpec<'a> {
     pub current_dir: Option<&'a Path>,
     /// Explicit environment variables to set on the command.
     pub env: &'a [(String, String)],
+    /// Replace the inherited process environment before applying [`Self::env`].
+    ///
+    /// Security-sensitive consumers use this to prevent dynamic-loader, shell-startup, and
+    /// exported-function state from crossing a subprocess trust boundary while still delegating
+    /// command construction to this shared substrate.
+    pub clear_env: bool,
 }
 
 /// Build an unspawned [`std::process::Command`] from a [`SpawnSpec`].
@@ -60,6 +66,9 @@ pub fn build_command(spec: &SpawnSpec) -> Command {
     cmd.args(spec.args);
     if let Some(dir) = spec.current_dir {
         cmd.current_dir(dir);
+    }
+    if spec.clear_env {
+        cmd.env_clear();
     }
     for (key, value) in spec.env {
         cmd.env(key, value);
