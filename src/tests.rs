@@ -775,6 +775,7 @@ fn test_build_command_assembles_program_args_cwd_env() {
         args: &args,
         current_dir: Some(Path::new("/tmp")),
         env: &env,
+        clear_env: false,
     };
 
     let cmd = build_command(&spec);
@@ -801,6 +802,7 @@ fn test_build_command_defaults_no_cwd_no_env() {
         args: &args,
         current_dir: None,
         env: &env,
+        clear_env: false,
     };
 
     let cmd = build_command(&spec);
@@ -808,4 +810,25 @@ fn test_build_command_defaults_no_cwd_no_env() {
     assert_eq!(cmd.get_args().count(), 0);
     assert_eq!(cmd.get_current_dir(), None);
     assert_eq!(cmd.get_envs().count(), 0);
+}
+
+#[cfg(unix)]
+#[test]
+fn test_build_command_can_replace_the_inherited_environment() {
+    let args = Vec::new();
+    let env = vec![("LOOP_LIB_EXPLICIT".to_string(), "kept".to_string())];
+    let spec = SpawnSpec {
+        program: "/usr/bin/env",
+        args: &args,
+        current_dir: None,
+        env: &env,
+        clear_env: true,
+    };
+
+    std::env::set_var("LOOP_LIB_MUST_NOT_LEAK", "caller-value");
+    let output = build_command(&spec).output().expect("run env probe");
+    std::env::remove_var("LOOP_LIB_MUST_NOT_LEAK");
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("UTF-8 env output");
+    assert_eq!(stdout, "LOOP_LIB_EXPLICIT=kept\n");
 }
