@@ -794,9 +794,8 @@ fn execute_commands_internal(config: &LoopConfig, commands: &[DirCommand]) -> Re
             let pool = match ThreadPoolBuilder::new().num_threads(max).build() {
                 Ok(pool) => pool,
                 Err(err) => {
-                    let message = format!(
-                        "Failed to create thread pool with max_parallel={max}: {err}"
-                    );
+                    let message =
+                        format!("Failed to create thread pool with max_parallel={max}: {err}");
                     if !config.silent {
                         eprintln!("{message}");
                     }

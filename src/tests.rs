@@ -186,8 +186,7 @@ fn test_execute_command_in_directory_missing_directory_fails_cleanly() {
     let temp_dir = TempDir::new().unwrap();
     let missing_dir = temp_dir.path().join("missing-dir");
 
-    let result =
-        execute_command_in_directory(&missing_dir, "echo test", &config, &aliases, None);
+    let result = execute_command_in_directory(&missing_dir, "echo test", &config, &aliases, None);
     assert!(!result.success);
     assert_eq!(result.exit_code, 1);
     assert!(result.stderr.contains("No directory found"));
