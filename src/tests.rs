@@ -174,6 +174,24 @@ fn test_execute_command_in_directory() {
     assert!(!result.success);
     assert_eq!(result.exit_code, 1);
 }
+
+#[test]
+fn test_execute_command_in_directory_missing_directory_fails_cleanly() {
+    let config = LoopConfig {
+        verbose: false,
+        silent: true,
+        ..Default::default()
+    };
+    let aliases = HashMap::new();
+    let temp_dir = TempDir::new().unwrap();
+    let missing_dir = temp_dir.path().join("missing-dir");
+
+    let result =
+        execute_command_in_directory(&missing_dir, "echo test", &config, &aliases, None);
+    assert!(!result.success);
+    assert_eq!(result.exit_code, 1);
+    assert!(result.stderr.contains("No directory found"));
+}
 #[test]
 fn test_run_without_looprc() {
     let temp_dir = TempDir::new().unwrap();
@@ -241,6 +259,41 @@ fn test_run_parallel() {
     // Test with a failing command in parallel mode
     let result = run(&config, FAIL_CMD);
     assert!(result.is_err());
+}
+
+#[test]
+fn test_run_parallel_with_invalid_max_parallel() {
+    let temp_dir = TempDir::new().unwrap();
+    let dir1 = temp_dir.path().join("dir1");
+    fs::create_dir(&dir1).unwrap();
+
+    let config = LoopConfig {
+        directories: vec![dir1.to_str().unwrap().to_string()],
+        ignore: vec![],
+        verbose: false,
+        silent: true,
+        add_aliases_to_global_looprc: false,
+        include_filters: None,
+        exclude_filters: None,
+        parallel: true,
+        dry_run: false,
+        json_output: false,
+        spawn_stagger_ms: 0,
+        env: None,
+        max_parallel: Some(0),
+        root_dir: None,
+    };
+
+    let result = run(&config, "echo test");
+    assert!(result.is_err());
+    let error = result.err().unwrap();
+    assert!(
+        error
+            .to_string()
+            .contains("Failed to create thread pool with max_parallel=0"),
+        "{}",
+        error
+    );
 }
 
 #[test]
