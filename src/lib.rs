@@ -274,7 +274,12 @@ pub fn execute_command_in_directory(
 ) -> CommandResult {
     if !dir.exists() {
         println!("\nNo directory found for {}", dir.display());
-        let dir_name = dir.file_name().unwrap_or_default().to_str().unwrap();
+        let dir_name = dir
+            .file_name()
+            .and_then(|name| name.to_str())
+            .filter(|name| !name.is_empty())
+            .map(str::to_owned)
+            .unwrap_or_else(|| dir.to_string_lossy().into_owned());
         println!(
             "\x1b[31m\n✗ {}: No directory found. Command: {} (Exit code: {})\x1b[0m",
             dir_name, command, 1
@@ -330,7 +335,9 @@ pub fn execute_command_in_directory(
 
     if !config.silent {
         println!();
-        io::stdout().flush().unwrap();
+        if let Err(err) = io::stdout().flush() {
+            eprintln!("Failed to flush stdout: {err}");
+        }
     }
 
     let (shell, shell_flag) = get_shell_and_flag();
@@ -442,7 +449,9 @@ pub fn execute_command_in_directory(
         } else {
             println!("\x1b[31m\n✗ {dir_name}: exited code {exit_code}\x1b[0m");
         }
-        io::stdout().flush().unwrap();
+        if let Err(err) = io::stdout().flush() {
+            eprintln!("Failed to flush stdout: {err}");
+        }
     }
 
     CommandResult {
@@ -683,7 +692,12 @@ fn execute_commands_internal(config: &LoopConfig, commands: &[DirCommand]) -> Re
             None
         };
         let spinner_style = ProgressStyle::with_template("{prefix:.bold.dim} {spinner} {wide_msg}")
-            .unwrap()
+            .unwrap_or_else(|err| {
+                if !config.silent {
+                    eprintln!("Failed to configure progress style: {err}");
+                }
+                ProgressStyle::default_spinner()
+            })
             .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ");
 
         let total = commands.len();
@@ -777,10 +791,17 @@ fn execute_commands_internal(config: &LoopConfig, commands: &[DirCommand]) -> Re
         // Use custom thread pool if max_parallel is set, otherwise use global pool
         let parallel_results: Vec<CommandResult> = if let Some(max) = config.max_parallel {
             // Create a custom thread pool with limited threads
-            let pool = ThreadPoolBuilder::new()
-                .num_threads(max)
-                .build()
-                .expect("Failed to create thread pool");
+            let pool = match ThreadPoolBuilder::new().num_threads(max).build() {
+                Ok(pool) => pool,
+                Err(err) => {
+                    let message =
+                        format!("Failed to create thread pool with max_parallel={max}: {err}");
+                    if !config.silent {
+                        eprintln!("{message}");
+                    }
+                    return Err(anyhow::anyhow!(message));
+                }
+            };
             pool.install(execute_parallel)
         } else {
             execute_parallel()
