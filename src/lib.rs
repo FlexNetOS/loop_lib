@@ -273,7 +273,8 @@ pub fn execute_command_in_directory(
     extra_env: Option<&HashMap<String, String>>,
 ) -> CommandResult {
     if !dir.exists() {
-        println!("\nNo directory found for {}", dir.display());
+        let error_message = format!("No directory found for {}", dir.display());
+        println!("\n{error_message}");
         let dir_name = dir
             .file_name()
             .and_then(|name| name.to_str())
@@ -290,7 +291,7 @@ pub fn execute_command_in_directory(
             directory: dir.to_path_buf(),
             command: command.to_string(),
             stdout: String::new(),
-            stderr: String::new(),
+            stderr: error_message,
         };
     }
 
@@ -790,6 +791,11 @@ fn execute_commands_internal(config: &LoopConfig, commands: &[DirCommand]) -> Re
 
         // Use custom thread pool if max_parallel is set, otherwise use global pool
         let parallel_results: Vec<CommandResult> = if let Some(max) = config.max_parallel {
+            if max == 0 {
+                return Err(anyhow::anyhow!(
+                    "Failed to create thread pool with max_parallel=0: thread count must be greater than zero"
+                ));
+            }
             // Create a custom thread pool with limited threads
             let pool = match ThreadPoolBuilder::new().num_threads(max).build() {
                 Ok(pool) => pool,
